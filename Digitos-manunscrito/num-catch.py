@@ -1,68 +1,66 @@
 import tensorflow as tf
-from tensorflow.keras import layers, models
+import tensorflow_datasets as tfds
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-import cv2
-import tkinter as tk
 
-'''
-(train_images, train_labels), (test_images, test_labels) = tf.keras.datasets.mnist.load_data()
 
-train_images = train_images.reshape((60000, 28, 28, 1)).astype('float32') / 255
-test_images = test_images.reshape((10000, 28, 28, 1)).astype('float32') / 255
+datos, metadatos = tfds.load('mnist', as_supervised=True, with_info=True)
 
-train_labels = tf.keras.utils.to_categorical(train_labels)
-test_labels = tf.keras.utils.to_categorical(test_labels)
+test, train = datos['test'], datos['train']
 
-model = models.Sequential()
-model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)))
-model.add(layers.MaxPooling2D((2, 2)))
-model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-model.add(layers.MaxPooling2D((2, 2)))
-model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-model.add(layers.Flatten())
-model.add(layers.Dense(64, activation='relu'))
-model.add(layers.Dense(10, activation='softmax'))
+def normalizar(imagenes, etiquetas):
+  imagenes = tf.cast(imagenes, tf.float32)
+  imagenes /= 255
+  return imagenes, etiquetas
 
-model.compile(optimizer='adam',
-              loss='categorical_crossentropy',
-              metrics=['accuracy'])
+train = train.map(normalizar)
+test = test.map(normalizar)
 
-model.save('nummodel.model')
+#agrgar datos a cahe
+train = train.cache()
+test = test.cache()
 
-history = model.fit(train_images, train_labels, epochs=10, 
-                    validation_data=(test_images, test_labels))
+for imagen, etiqueta in train.take(1):
+  break
+imagen = imagen.numpy().reshape((28, 28))
 
-test_loss, test_acc = model.evaluate(test_images, test_labels)
-print(f'Test accuracy: {test_acc}')
-
-predictions = model.predict(test_images)
-
-plt.figure(figsize=(10, 10))
-for i in range(25):
-    plt.subplot(5, 5, i+1)
-    plt.xticks([])
-    plt.yticks([])
-    plt.grid(False)
-    plt.imshow(test_images[i].reshape(28, 28), cmap=plt.cm.binary)
-    plt.xlabel(np.argmax(predictions[i]))
+plt.figure()
+plt.imshow(imagen, cmap=plt.cm.binary)
+plt.colorbar()
+plt.grid(False)
 plt.show()
-'''
 
-def on_button_click():
-    label.config(text="¡Hola, Tkinter!")
+from keras.src.layers.attention.multi_head_attention import activation
+#creacion del modelo
 
-# Crear la ventana principal
-root = tk.Tk()
-root.title("Ejemplo Tkinter")
+modelo = tf.keras.Sequential([
+    tf.keras.layers.Conv2D(32, (3,3), input_shape=(28,28,1), activation='gelu', name='conv2d_1'),
+    tf.keras.layers.MaxPooling2D(2,2),
+    tf.keras.layers.Conv2D(64, (3,3), activation='gelu', name='conv2d_2'),
+    tf.keras.layers.MaxPooling2D(2,2),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(units=100, activation='gelu'),
+    tf.keras.layers.Dropout(0.5),
+    tf.keras.layers.Dense(units=50, activation='gelu'),
+    tf.keras.layers.Dense(10, activation='softmax')
+])
 
-# Crear una etiqueta
-label = tk.Label(root, text="Presiona el botón")
-label.pack(pady=10)
+modelo.compile(
+    optimizer='adam',
+    loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+    metrics=['accuracy']
+)
 
-# Crear un botón
-button = tk.Button(root, text="Presioname", command=on_button_click)
-button.pack(pady=10)
+tamano_lote=32
+train_len = 60000
+train = train.repeat().shuffle(train_len).batch(tamano_lote)
 
-# Iniciar el bucle principal
-root.mainloop()
+import math
+historial = modelo.fit(
+    train,
+    epochs=60,
+    steps_per_epoch=math.ceil(train_len/tamano_lote)
+)
+
+modelo.save('numcatch.keras')
