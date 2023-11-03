@@ -3,7 +3,9 @@ import tensorflow_datasets as tfds
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import math
+from keras.src.layers.attention.multi_head_attention import activation
+import resource
 
 datos, metadatos = tfds.load('mnist', as_supervised=True, with_info=True)
 
@@ -31,7 +33,7 @@ plt.colorbar()
 plt.grid(False)
 plt.show()
 
-from keras.src.layers.attention.multi_head_attention import activation
+
 #creacion del modelo
 
 modelo = tf.keras.Sequential([
@@ -56,7 +58,7 @@ tamano_lote=32
 train_len = 60000
 train = train.repeat().shuffle(train_len).batch(tamano_lote)
 
-import math
+
 historial = modelo.fit(
     train,
     epochs=60,
